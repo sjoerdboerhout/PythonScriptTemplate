@@ -17,7 +17,7 @@ CWD = os.getcwd()
 
 # Global logger
 LOGGER = None
-LOGGER_DEFAULT_LEVEL = logging.INFO
+LOGGER_DEFAULT_LEVEL = "info"
 LOGGER_APP_NAME = "AppName"
 LOGGER_DIR = "log"
 LOGGER_NAME = "AppLogger"
@@ -37,23 +37,22 @@ def parse_options():
 
     parser = OptionParser()
 
-    parser.add_option("-d", "--debug",
-                        action="store_true", 
-                        dest="debug", 
-                        default=False,
-                        help="Enable debug logging"
+    parser.add_option("-l", "--loglevel", 
+                        dest="loglevel", 
+                        default=LOGGER_DEFAULT_LEVEL,
+                        help=f"Required loglevel, default={LOGGER_DEFAULT_LEVEL}"
                      )
 
     parser.add_option("-s", "--source", 
                         dest="source",
                         default="source",
-                        help="Source directory"
+                        help="Source directory, default=source"
                      )
 
     parser.add_option("-t", "--target", 
                         dest="target",
                         default="target",
-                        help="Target directory"
+                        help="Target directory, default=target"
                      )
 
     parser.add_option("-u", "--user", 
@@ -78,9 +77,50 @@ def parse_options():
     return options
 
 
+def addLoggingLevel(levelName, levelNum, methodName=None):
+    """
+    Adds a new logging level to the `logging` module and the currently configured logging class.
+
+    `levelName` becomes an attribute of the `logging` module with the value
+    `levelNum`. `methodName` becomes a convenience method 
+
+    Example
+    -------
+    >>> addLoggingLevel('TRACE', logging.DEBUG - 5)
+    >>> logging.trace('Trace level message')
+    """
+
+    if not methodName:
+        methodName = levelName.lower()
+
+    if hasattr(logging, levelName):
+       raise AttributeError('{} already defined in logging module'.format(levelName))
+
+    if hasattr(logging, methodName):
+       raise AttributeError('{} already defined in logging module'.format(methodName))
+
+    if hasattr(logging.getLoggerClass(), methodName):
+       raise AttributeError('{} already defined in logger class'.format(methodName))
+
+    def logForLevel(self, message, *args, **kwargs):
+        if self.isEnabledFor(levelNum):
+            self._log(levelNum, message, args, **kwargs)
+
+    def logToRoot(message, *args, **kwargs):
+        logging.log(levelNum, message, *args, **kwargs)
+
+    logging.addLevelName(levelNum, levelName)
+    setattr(logging, levelName, levelNum)
+    setattr(logging.getLoggerClass(), methodName, logForLevel)
+    setattr(logging, methodName, logToRoot)
+
+
 # Create and initialize the logger of this script
 def create_logger(log_dir=LOGGER_DIR, log_file=None, logger_name=LOGGER_NAME, log_level=LOGGER_DEFAULT_LEVEL):
     """Log plain text to file and to terminal with colors"""
+
+    if log_level.upper() not in list(logging._nameToLevel.keys()):
+        raise AttributeError('{} is not a valid log level name'.format(log_level))
 
     if log_file == None:
         curr_dateTime = datetime.now().strftime("%Y-%m-%d_%H%M%S")
@@ -112,10 +152,12 @@ def create_logger(log_dir=LOGGER_DIR, log_file=None, logger_name=LOGGER_NAME, lo
         datefmt='%H:%M:%S',
         reset=True,
         log_colors={
-            "DEBUG": "cyan",
-            "INFO": "white",
-            "WARNING": "yellow",
-            "ERROR": "red",
+            "ALL"     : "purple",
+            "TRACE"   : "purple",
+            "DEBUG"   : "cyan",
+            "INFO"    : "white",
+            "WARNING" : "yellow",
+            "ERROR"   : "red",
             "CRITICAL": "bold_red",
         },
         secondary_log_colors={},
@@ -198,7 +240,7 @@ def main(options):
     LOGGER.info(f"Working dir    : {CWD}")
     LOGGER.info(f"Source dir     : {options.source}")
     LOGGER.info(f"Target dir     : {options.target}")
-    LOGGER.info(f"Debug mode     : {options.debug}")
+    LOGGER.info(f"Log level      : {logging.getLevelName(LOGGER.level)}")
     LOGGER.info(f"Verbose mode   : {options.verbose}")
     LOGGER.info("-----------------------------------------------------------------------------------------")
 
@@ -210,42 +252,43 @@ def main(options):
         LOGGER.critical(f"Given target dir '{options.target}' doesn't exist or is not a directory...")
         # sys.exit(0)
 
-    LOGGER.info("- Action 1: Log levels ------------------------------------------------------------------")
+    LOGGER.info("- Action 1: Test all log levels ---------------------------------------------------------")
     current_loglevel = LOGGER.level
-    LOGGER.setLevel(logging.DEBUG)  # Overwrite loglevel to always print all levels in this test
+    LOGGER.setLevel(logging.ALL)  # Overwrite loglevel to always print all levels in this test
 
-    # LOGGER.trace("Trace message")
+    print(f"All log levels: {list(logging._nameToLevel.keys())}")
+
+    LOGGER.all("All message")
+    LOGGER.trace("Trace message")
     LOGGER.debug("Debug message")
     LOGGER.info("Info message")
     LOGGER.warning("Warning message")
     LOGGER.error("Error message")
-    LOGGER.exception("Exception message")
-    LOGGER.fatal("Fatal message")
     LOGGER.critical("Critical message")
+    LOGGER.none("None message")
     
     LOGGER.setLevel(current_loglevel)  # Restore original log level
 
     LOGGER.info("- Action 2: Progress bar ----------------------------------------------------------------")
     idx = 0
     max = 7 # example value for max items
-    
+
     for idx in range(max):
         print_progressbar(idx, max-1)
-        LOGGER.debug(f"Idx: {idx}")
-        time.sleep(1)
+        time.sleep(1)   
+    LOGGER.debug(f"Latest Idx: {idx}")    
 
     if options.verbose:
-            LOGGER.info(f"  - Verbose text")
-
-    LOGGER.info("- Action 3: Yes / No question ---------------------------------------------------------------")
-
+        LOGGER.info(f"  - Verbose text")    
+    
+    LOGGER.info("- Action 3: Yes / No question ---------------------------------------------------------------")    
+    
     if query_yes_no("  Question with a yes/no answer?.", "yes") == YES:
         LOGGER.warning(f"  - Answer: Yes")
     else: 
-        LOGGER.fatal(f"  - Answer: No")
-
-    LOGGER.info("- Action 4: Command line action -------------------------------------------------------------")
-
+        LOGGER.fatal(f"  - Answer: No") 
+        
+    LOGGER.info("- Action 4: Command line action -------------------------------------------------------------") 
     cmd = ['ls', '-al']
     output = subprocess.check_output(cmd, cwd=CWD).decode('utf8')
     LOGGER.info(f"  - ls -al:\n{output}")
@@ -257,10 +300,10 @@ if __name__ == "__main__":
 
     options = parse_options()
 
-    if options.debug:
-        LOGGER = create_logger(log_level=logging.DEBUG)
-    else:
-        LOGGER = create_logger()
+    addLoggingLevel('ALL'  , 1)
+    addLoggingLevel('TRACE', logging.DEBUG - 5)
+    addLoggingLevel('NONE', logging.CRITICAL + 5)
+    LOGGER = create_logger(log_level=options.loglevel.upper())
 
     main(options)
 
