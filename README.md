@@ -4,7 +4,9 @@
 * [Setup](#setup)
 
 ## General info
-This script can be used as a template for all kind of (simple) task executing scripts. It has build in colored logging, a progress bar and support for yes/no questions with a default answer
+This script can be used as a template for all kind of (simple) task executing scripts. It has build in colored logging, a progress bar and support for yes/no questions with a default answer.
+
+Note: It is one of my first Pythons scripts and probably lot of improvements will be possible. :-)
 	
 ## Technologies
 Project is created with:
